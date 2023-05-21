@@ -7,16 +7,16 @@ import android.view.MotionEvent
 import android.view.View
 import androidx.constraintlayout.motion.widget.MotionLayout
 
-//복습
-class ExoPlayerMotionLayout @JvmOverloads constructor(
+class ExoPlayerMotionLayout
+@JvmOverloads constructor(
     context: Context,
-    attributeSet: AttributeSet,
+    attributeSet: AttributeSet? = null,
     defStyleAttr: Int = 0
-): MotionLayout(context, attributeSet, defStyleAttr) {
+) : MotionLayout(context, attributeSet, defStyleAttr) {
 
     var targetView: View? = null
     private val gestureDetector by lazy {
-        GestureDetector(context, object : GestureDetector.SimpleOnGestureListener(){
+        GestureDetector(context, object : GestureDetector.SimpleOnGestureListener() {
             override fun onScroll(
                 e1: MotionEvent,
                 e2: MotionEvent,
@@ -25,19 +25,18 @@ class ExoPlayerMotionLayout @JvmOverloads constructor(
             ): Boolean {
                 return targetView?.containTouchArea(e1.x.toInt(), e1.y.toInt()) ?: false
             }
+
         })
     }
 
     override fun onInterceptTouchEvent(event: MotionEvent?): Boolean {
         event?.let {
             return gestureDetector.onTouchEvent(event)
-
         } ?: return false
 
     }
 
-    private fun View.containTouchArea(x: Int, y:Int): Boolean {
-        return (x in this.left .. this.right) && y in this.top .. this.bottom)
+    private fun View.containTouchArea(x: Int, y: Int): Boolean {
+        return (x in this.left..this.right && y in this.top..this.bottom)
     }
 }
-//

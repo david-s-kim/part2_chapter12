@@ -5,10 +5,13 @@ import androidx.appcompat.app.AppCompatActivity
 import android.os.Bundle
 import androidx.constraintlayout.motion.widget.MotionLayout
 import androidx.recyclerview.widget.LinearLayoutManager
-import com.example.part2_chapter12.databinding.ActivityMainBinding
 import com.google.android.exoplayer2.ExoPlayer
 import com.google.android.exoplayer2.MediaItem
 import com.google.android.exoplayer2.Player
+import com.example.part2_chapter12.databinding.ActivityMainBinding
+import com.example.part2_chapter12.player.PlayerHeader
+import com.example.part2_chapter12.player.PlayerVideoAdapter
+import com.example.part2_chapter12.player.transform
 
 class MainActivity : AppCompatActivity() {
 
@@ -16,71 +19,111 @@ class MainActivity : AppCompatActivity() {
         ActivityMainBinding.inflate(layoutInflater)
     }
 
+    private val videoList: VideoList by lazy {
+        readData("videos.json", VideoList::class.java) ?: VideoList(emptyList())
+    }
+
     private lateinit var videoAdapter: VideoAdapter
+    private lateinit var playerVideoAdapter: PlayerVideoAdapter
 
     private var player: ExoPlayer? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-
         setContentView(binding.root)
+
         initMotionLayout()
         initVideoRecyclerView()
+        initPlayerVideoRecyclerView()
         initControlButton()
+        initHideButton()
+    }
 
+    private fun initHideButton() {
         binding.hideButton.setOnClickListener {
             binding.motionLayout.transitionToState(R.id.hide)
             player?.pause()
         }
-
     }
 
     private fun initControlButton() {
         binding.controlButton.setOnClickListener {
             player?.let {
-
                 if (it.isPlaying) {
                     it.pause()
                 } else {
                     it.play()
                 }
             }
-
         }
     }
 
     private fun initVideoRecyclerView() {
-        videoAdapter = VideoAdapter(context = this) { videoEntity ->
+        videoAdapter = VideoAdapter(context = this) { videoItem ->
             binding.motionLayout.setTransition(R.id.collapse, R.id.expand)
             binding.motionLayout.transitionToEnd()
 
-            play(videoEntity)
+            val headerModel = PlayerHeader(
+                id = "H${videoItem.id}",
+                title = videoItem.title,
+                channelName = videoItem.channelName,
+                viewCount = videoItem.viewCount,
+                dateText = videoItem.dateText,
+                channelThumb = videoItem.channelThumb
+            )
 
+            val list = listOf(headerModel) +  videoList.videos.filter { it.id != videoItem.id }.map { it.transform() }
+            playerVideoAdapter.submitList(list)
+
+            play(videoItem.videoUrl, videoItem.title)
         }
-
-
         binding.videoListRecyclerView.apply {
             layoutManager = LinearLayoutManager(context)
             adapter = videoAdapter
         }
 
-        val videoList = readData("videos.json", VideoList::class.java) ?: VideoList(emptyList())
         videoAdapter.submitList(videoList.videos)
     }
 
+    private fun initPlayerVideoRecyclerView() {
+        playerVideoAdapter = PlayerVideoAdapter(context = this) { playerVideo ->
+            play(playerVideo.videoUrl, playerVideo.title)
+
+            val headerModel = PlayerHeader(
+                id = "H${playerVideo.id}",
+                title = playerVideo.title,
+                channelName = playerVideo.channelName,
+                viewCount = playerVideo.viewCount,
+                dateText = playerVideo.dateText,
+                channelThumb = playerVideo.channelThumb
+            )
+
+            val list = listOf(headerModel) +  videoList.videos.filter { it.id != playerVideo.id }.map { it.transform() }
+            playerVideoAdapter.submitList(list) {
+                binding.playerRecyclerView.scrollToPosition(0)
+            }
+
+        }
+
+        binding.playerRecyclerView.apply {
+            layoutManager = LinearLayoutManager(context)
+            adapter = playerVideoAdapter
+            itemAnimator = null
+        }
+        val videoList = readData("videos.json", VideoList::class.java) ?: VideoList(emptyList())
+        videoAdapter.submitList(videoList.videos)
+    }
 
     private fun initMotionLayout() {
         binding.motionLayout.targetView = binding.videoPlayerContainer
         binding.motionLayout.jumpToState(R.id.hide)
 
-        binding.motionLayout.setTransitionListener(object : MotionLayout.TransitionListener {
+        binding.motionLayout.setTransitionListener(object: MotionLayout.TransitionListener {
             override fun onTransitionStarted(
                 motionLayout: MotionLayout?,
                 startId: Int,
                 endId: Int
-            ) {
-
-            }
+            ) {}
 
             override fun onTransitionChange(
                 motionLayout: MotionLayout?,
@@ -92,7 +135,7 @@ class MainActivity : AppCompatActivity() {
             }
 
             override fun onTransitionCompleted(motionLayout: MotionLayout?, currentId: Int) {
-                binding.playerView.userController = (currentId == R.id.expand)
+                binding.playerView.useController = (currentId == R.id.expand)
             }
 
             override fun onTransitionTrigger(
@@ -100,9 +143,7 @@ class MainActivity : AppCompatActivity() {
                 triggerId: Int,
                 positive: Boolean,
                 progress: Float
-            ) {
-                TODO("Not yet implemented")
-            }
+            ) {}
         })
     }
 
@@ -114,6 +155,7 @@ class MainActivity : AppCompatActivity() {
                 binding.playerView.useController = false
 
                 exoPlayer.addListener(object : Player.Listener {
+
                     override fun onIsPlayingChanged(isPlaying: Boolean) {
                         super.onIsPlayingChanged(isPlaying)
 
@@ -121,21 +163,19 @@ class MainActivity : AppCompatActivity() {
                             binding.controlButton.setImageResource(R.drawable.ic_baseline_pause_24)
                         } else {
                             binding.controlButton.setImageResource(R.drawable.ic_baseline_play_arrow_24)
-
                         }
                     }
                 })
-
             }
+
     }
 
-    private fun play(videoItem: VideoItem) {
-
-        player?.setMediaItem(MediaItem.fromUri(Uri.parse(videoItem.videoUrl)))
+    private fun play(videoUrl: String, videoTitle: String) {
+        player?.setMediaItem(MediaItem.fromUri(Uri.parse(videoUrl)))
         player?.prepare()
         player?.play()
 
-        binding.videoTitleTextView.text = videoItem.title
+        binding.videoTitleTextView.text = videoTitle
     }
 
     override fun onStart() {
@@ -144,12 +184,10 @@ class MainActivity : AppCompatActivity() {
         if (player == null) {
             initExoPlayer()
         }
-
     }
 
     override fun onResume() {
         super.onResume()
-
         if (player == null) {
             initExoPlayer()
         }
